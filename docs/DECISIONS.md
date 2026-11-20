@@ -23,3 +23,5 @@ Agents append here via the `/new-feature` skill; you append here by hand.
 - Step 3 naive prompt: CLAUDE.md rules held, agent avoided leaky model by default; literal all-columns run gave R² 1.000 (leakage).
 - Ridge beats persistence on test R² (0.583 vs 0.510) but loses on MAE (947 vs 840); input for Exercise 5.
 - Agent reported test-split metrics during Step 3 (no tuning); added CLAUDE.md rule against test reporting until final results.
+- Step 3 residual check: agent computed (not explained) lstsq over subsets ≤3; only {casual, registered} exact, coef [1,1], intercept 0, max|resid| 3.6e-12 on 714 feature rows. Confirmed independently on 728 raw rows.
+- Agent claimed no size-4+ identity is "plausible"; unverified — search limited to subsets ≤3.
