@@ -1,9 +1,17 @@
 {
-  "model": "bikeshare-coder",
+  "model": "qwen3",
   "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:11434",
-    "ANTHROPIC_AUTH_TOKEN": "ollama",
-    "ANTHROPIC_API_KEY": "",
+    "ANTHROPIC_BASE_URL": "https://ellm.nrp-nautilus.io/anthropic",
+    "ANTHROPIC_MODEL": "qwen3",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "qwen3",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "qwen3",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "qwen3",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "qwen3",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "200000",
+    "ENABLE_TOOL_SEARCH": "false",
+    "API_TIMEOUT_MS": "3000000",
+    "CLAUDE_STREAM_IDLE_TIMEOUT_MS": "3000000",
+    "CLAUDE_CODE_MAX_RETRIES": "10",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
   },
   "hooks": {
