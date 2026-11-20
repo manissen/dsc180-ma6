@@ -19,3 +19,7 @@ Agents append here via the `/new-feature` skill; you append here by hand.
 - Verified instant 3–731, min cnt 22 on 2012-10-29, cnt_2d_bfr calendar-aligned 725/725.
 - Agent error: misreported SEP as SPRING/SUMMER; actual 16 FALL / 44 SUMMER.
 - Agent error: called season "two conventions, contradicts mnth on ~20% of rows". Counts (MAR 11/yr SPRING, JUN 10/yr SUMMER, DEC 11/yr WINTER) match a single astronomical (solstice/equinox) rule — season is consistent. Using cyclical month encoding; season redundant with it.
+- cnt_2d_bfr verified calendar-aligned (725/725) but kept in UNVERIFIED_COLS; contract builds its own lags.
+- Step 3 naive prompt: CLAUDE.md rules held, agent avoided leaky model by default; literal all-columns run gave R² 1.000 (leakage).
+- Ridge beats persistence on test R² (0.583 vs 0.510) but loses on MAE (947 vs 840); input for Exercise 5.
+- Agent reported test-split metrics during Step 3 (no tuning); added CLAUDE.md rule against test reporting until final results.
