@@ -112,9 +112,13 @@ UNUSED_COLS = {
 TRAIN_END = "2011-12-31"
 VALID_END = "2012-06-30"
 
-# Longest lag window in src/features.py. The first LAG_WARMUP calendar days
-# have no complete history and are dropped; tests/test_contract.py uses this
-# to bound how many rows may legitimately disappear.
+# Row accounting, not a window. src/features.py writes each lag's and window's
+# length as a literal so the number matches the column's name; nothing there
+# imports this. It says the first LAG_WARMUP calendar days have no complete
+# history and are dropped, which is how tests/test_contract.py bounds how many
+# rows may legitimately disappear. Kept equal to the longest window on purpose,
+# so a longer lag means editing both, and a stale value here silently widens the
+# row-loss bound instead of failing.
 LAG_WARMUP = 7
 
 

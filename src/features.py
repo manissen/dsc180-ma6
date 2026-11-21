@@ -10,7 +10,7 @@ Run: python -m src.features
 import numpy as np
 import pandas as pd
 
-from src.config import FORBIDDEN, LAG_WARMUP, PROCESSED, TARGET
+from src.config import FORBIDDEN, PROCESSED, TARGET
 from src.ingest import load_raw
 
 WEATHER_ORDER = {"GOOD": 0, "MISTY": 1, "BAD": 2}
@@ -70,11 +70,15 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # --- Lagged target: past values only. shift(1) is the whole ballgame;
     # without it, cnt_roll_7 would contain today's count. -----------------
-    # If you add a longer lag, raise LAG_WARMUP in src/config.py.
+    # The 7s are literals because each is the window the feature's own name
+    # states: a longer lag is a new column with a new length, not an edit to a
+    # shared constant. LAG_WARMUP is row accounting only -- how many leading
+    # days have no complete history -- and must be raised to match a longest
+    # window, but nothing here reads it.
     out["cnt_lag_1"] = out[TARGET].shift(1)
-    out["cnt_lag_7"] = out[TARGET].shift(LAG_WARMUP)
+    out["cnt_lag_7"] = out[TARGET].shift(7)
     out["cnt_roll_3"] = out[TARGET].shift(1).rolling(3).mean()
-    out["cnt_roll_7"] = out[TARGET].shift(1).rolling(LAG_WARMUP).mean()
+    out["cnt_roll_7"] = out[TARGET].shift(1).rolling(7).mean()
 
     return out.dropna().reset_index(drop=True)
 

@@ -1,4 +1,6 @@
 """Guard rails on the ingest contract and the trained model's behaviour."""
+import copy
+
 import pandas as pd
 import pytest
 from sklearn.metrics import r2_score
@@ -153,10 +155,18 @@ def test_only_audited_raw_columns_reach_the_model(raw, feats):
 
 
 def test_beats_the_mean_baseline(feats):
-    """A model that cannot beat predicting the training mean is not a result."""
+    """A model that cannot beat predicting the training mean is not a result.
+
+    Fits a copy. sklearn's Pipeline.fit mutates in place, so fitting
+    MODELS["ridge"] directly would leave this test's scaler and coefficients on
+    the shared instance for the rest of the session -- any later test that
+    reaches into MODELS would silently be reading a model fitted here rather
+    than a fresh one. src/train.py avoids the same trap by fitting the copies
+    from _models(), which is also where this idiom comes from.
+    """
     cols = feature_columns(feats)
     train, _, test = temporal_split(feats)
-    ridge = MODELS["ridge"]
+    ridge = copy.deepcopy(MODELS["ridge"])
     ridge.fit(train[cols], train[TARGET])
     assert r2_score(test[TARGET], ridge.predict(test[cols])) > 0.4
 

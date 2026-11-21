@@ -13,7 +13,7 @@ Forecast daily Capital Bikeshare `cnt` (2011-2012) from calendar, weather, and l
 ## Lags and rolling features
 - Run `reindex_to_calendar` first. The mirror is missing 2011-03-10 and `.shift()` moves by rows, so an unpatched gap silently ships a 2-day lag labelled 1-day.
 - `.shift(1)` before any aggregation, otherwise the window contains the day's own `cnt`.
-- Window longer than 7 days: raise `LAG_WARMUP` in `src/config.py`, or `tests/test_contract.py` stops bounding row loss.
+- Window longer than 7 days: raise `LAG_WARMUP` in `src/config.py`, or `tests/test_contract.py` stops bounding row loss. `LAG_WARMUP` only bounds row loss; it does not set any window. Write the length as a literal in `build_features` so each feature's number matches its name.
 - Add a hand-computed test in `tests/test_leakage.py` for every new lag. Use the `/new-feature` skill, which enforces this order.
 - Build the feature after the `reindex_to_calendar` call in `build_features`, never in `src/train.py`.
 
