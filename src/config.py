@@ -22,7 +22,7 @@ DATA_URL = (
 
 TARGET = "cnt"
 
-# --- Three reasons a column is kept out of the feature set --------------
+# --- Four reasons a column is kept out of the feature set --------------
 
 # 1. Leakage: the target or an arithmetic restatement of it.
 #    casual + registered == cnt exactly, on every row. A model handed these
@@ -42,8 +42,18 @@ TIME_INDEX_COLS = {"instant", "yr", "days_since_2011"}
 #    build our own lags from the target and test those instead.
 UNVERIFIED_COLS = {"cnt_2d_bfr"}
 
+# 4. Rejected on evidence, not on principle. The column is safe -- it passes
+#    the same availability argument as the lags that stayed -- but it does not
+#    earn its place, so it is excluded rather than deleted: the feature code
+#    and the hand-computed leakage test in tests/test_leakage.py both remain,
+#    so the negative result is reproducible and cannot be re-litigated later
+#    by someone who assumes nobody tried it.
+#    cnt_roll_3: built and tested, excluded after validation R^2 moved
+#    ridge -0.004, hgb -0.020 (inside noise; 182 validation days).
+REJECTED_COLS = {"cnt_roll_3"}
+
 # What feature_columns() and the tests actually enforce.
-FORBIDDEN = LEAKAGE_COLS | TIME_INDEX_COLS | UNVERIFIED_COLS
+FORBIDDEN = LEAKAGE_COLS | TIME_INDEX_COLS | UNVERIFIED_COLS | REJECTED_COLS
 
 # Temporal split: train on 2011, validate on H1 2012, test on H2 2012.
 TRAIN_END = "2011-12-31"
