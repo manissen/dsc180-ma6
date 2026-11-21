@@ -20,68 +20,23 @@ Data facts verified by hand (not taken from the agent): 728 rows, 2011-01-03 -> 
 
 2. Headline Finding
 
-A perfect score was a bug report. Asked naively to "predict cnt from the other columns," the pipeline reaches R^2 = 1.000 (python -m src.leakage_demo). I made the agent prove the cause by computing it, not explaining it: numpy.linalg.lstsq of cnt ~ casual + registered gives coefficients [1.0000, 1.0000], intercept 0, and max |residual| = 3.6e-12. That's zero up to float64 precision, on 714 feature rows, and I confirmed it separately on the 728 raw rows. No other subset of up to 3 columns comes close: the best non-leaky subset has max |residual| ~ 1.8e3, so the gap is 15 orders of magnitude.
+The naive model, which uses every column, scores test R² = 1.000, and that result is invalid: casual + registered reproduces cnt exactly (max |residual| 3.6e-12), so the model learns addition instead of forecasting. Under a temporal split, the mean baseline scores −2.14 on test because ridership grew (the test mean is 1.73× the 2011 mean). A standardised ridge reaches 0.58 against a persistence ("yesterday's count") baseline of 0.51, and loses to persistence on MAE (947 vs 840 rides). Gradient boosting scores −0.50: a tree cannot predict above the largest value it saw in training (6,043 rides), and 56.5% of test days exceed it. Raising cnt_lag_1 from 6,043 to 8,714 leaves its prediction fixed at 4,863 while ridge's rises by 716, and 72% of its test MSE is bias rather than noise. It also loses to persistence on validation (0.22 vs 0.45). Most of that gap comes from out-of-range days (39% of H1 2012 exceeds the 2011 maximum), but on in-range days it still reaches only R² 0.33, consistent with 348 training rows and default settings. Re-expressing the target relative to recent demand removes the extrapolation problem and lets gradient boosting compete (Exercise 4), but that changes which target the models fit, not which model is better.
 
-The standing rules changed what the agent did. With CLAUDE.md loaded, the agent did not build the leaky model by default. It flagged the trap, used the audited feature set, and ran the all-columns version only as a demonstration. TODO (optional): the same prompt with CLAUDE.md removed, for a before/after comparison.
+The feature I added, cnt_roll_3 (mean count over the three preceding days), moved validation R² by −0.004 for ridge and −0.020 for gradient boosting. Both are below the 0.01 bar and inside the noise of a 182-day validation set, and the feature mostly duplicates cnt_lag_1 and cnt_roll_7. I rejected it: it remains built and tested, but is excluded from the models through REJECTED_COLS in src/config.py.
 
-I verified the agent's claims and didn't trust its fluency. Its data profile got every core fact right, but it also made confident mistakes I only caught by checking (all logged in docs/DECISIONS.md):
-
-It said nearest-training-day distance under a random split was "one second" (the data is daily, so it's one day).
-It said cnt = 22 was "~700x below the mean" (actually 4520/22 ~ 205x).
-It invented a story that season mixes "two conventions" and contradicts mnth on about 20% of rows. The boundary-month counts (MAR: 11 SPRING days per year, i.e. Mar 21-31; JUN: 10 SUMMER; SEP: 8 FALL; DEC: 11 WINTER) fit one astronomical rule, so the column is consistent.
-It misreported September as SPRING/SUMMER (actually 16 FALL / 44 SUMMER).
-
-The tests had a blind spot. test_no_forbidden_features checks against config.FORBIDDEN, so removing casual from LEAKAGE_COLS takes it out of the guard at the same moment it enters the features, and the test stays green. I added a hardcoded test_known_leaks_never_features, which turns red on that edit. TODO: paste the red/green pytest output.
+Responding to the batch audit (reports/audit.jsonl, run with qwen3; 7 findings, and it passed all four of its checks: leakage none, temporal split valid, baselines reported, reproducible). I fixed five findings. First, a derived restatement of cnt (e.g. cnt * 1.0 added in build_features) passed all 19 tests and scored ridge test R² 0.9999. It is now caught by test_no_feature_restates_target, a least-squares check over every feature and pair. Second, deleting casual from LEAKAGE_COLS was caught only incidentally; test_known_leaks_never_features now checks a hardcoded list (both shown red in docs/SEEDED_FAULTS.md). Third, LAG_WARMUP silently set two window sizes, so raising it as CLAUDE.md instructed would have turned cnt_lag_7 into a 14-day lag; the windows are now literals. Fourth, a test fitted the shared ridge in place; it now fits a copy. Fifth, my claim that transformed gradient boosting was the only model to beat persistence on MAE was false as written, because ridge also beats it on validation MAE; I reworded it to "on both splits", which is true. I did not fix two findings. The expected metrics in CLAUDE.md and the deliberate leakage demo are part of the starter's design and are excluded from feature_columns() by construction. The claimed ImportError for agent/audit.py is wrong: requirements.txt installs claude-agent-sdk, and the audit itself ran on it. None of the fixes moved a reported number; make all reproduces reports/metrics.json byte for byte, and make test runs 21 tests.
 
 3. Exercise 4 - Target Transformation≈
 
-Gradient boosting fails on the raw target because a tree cannot predict above
-the largest value it saw in training, and 39% of validation days exceed the
-2011 maximum. I tried three targets that express demand relative to recent
-demand, so that 2012 falls inside the 2011 range: today minus yesterday
-(diff_lag1), today divided by the trailing 7-day mean (ratio_roll7), and log
-growth from yesterday (logdiff_lag1). Each model fits the transformed target;
-predictions are inverted back to rides before scoring. The two baselines stay
-on rides: routing persistence through the difference transform turns it into
-2 × yesterday (R² −9.99), which is not a baseline.
+Gradient boosting fails on the raw target because a tree cannot predict above the largest value it saw in training, and 39% of validation days exceed the 2011 maximum. I tried three targets that express demand relative to recent demand, so that 2012 falls inside the 2011 range: today minus yesterday (diff_lag1), today divided by the trailing 7-day mean (ratio_roll7), and log growth from yesterday (logdiff_lag1). Each model fits the transformed target, and predictions are converted back to rides before scoring. The two baselines stay on rides: routing persistence through the difference transform turns it into 2 × yesterday (R² −9.99), which is no longer a baseline.
 
-On validation, every transform fixed the coverage problem (days out of range:
-39% → 2.2%, 0.0%, 0.5%) and lifted hgb from R² 0.219 to 0.608, 0.745 and 0.573.
-They did not help ridge. diff_lag1 left it unchanged (0.6475), as expected:
-cnt_lag_1 is already a feature, so predicting y − cnt_lag_1 is the same linear
-model with one coefficient shifted by 1. ratio_roll7 and logdiff_lag1 made it
-worse (0.388, 0.265). I chose ratio_roll7 on validation, committed that choice,
-and then scored test once: hgb R² 0.642 and MAE 810.1, against persistence at
-0.510 / 840.1 and the untransformed ridge at 0.583 / 947.1. It is the only
-model in the project to beat persistence on MAE.
+Every transform fixed the coverage problem and lifted gradient boosting. None helped ridge. diff_lag1 left it unchanged, as expected: cnt_lag_1 is already a feature, so predicting y − cnt_lag_1 is the same linear model with one coefficient shifted by 1. The other two made it worse. I chose ratio_roll7 on validation, committed that choice, and then scored test once: gradient boosting reached R² 0.642 and MAE 810.1, against persistence at 0.510 / 840.1 and the untransformed ridge at 0.583 / 947.1; ridge under the same transform fell to 0.023. Transformed gradient boosting is the only model in the project to beat persistence on MAE on both splits (validation 687.2 vs 900.6, test 810.1 vs 840.1). Untransformed ridge beats persistence on validation (832.9 vs 900.6) but loses on test (947.1 vs 840.1).
 
-I think the transformation is defensible, but the conclusion it supports is
-narrower than "gradient boosting is better." It is defensible because
-ridership grew by about 65%, a multiplicative change, and modelling today
-relative to last week is a standard way to handle that; it removes the cause
-of the failure (out-of-range days 39% → 0%) rather than masking it. But I
-picked the best of three on a 182-day validation set, and the same target that
-lifts the tree breaks the linear model (ridge falls to 0.023 on test). So the
-result is that gradient boosting can compete once the target is put on a
-stationary scale, not that it is the better model; the comparison depends on
-which target you choose. The code is behind --target in src/train.py (with
-src/transforms.py); the committed reports/metrics.json is the untransformed
-pipeline.
+I think the transformation is defensible, but the conclusion it supports is narrower than "gradient boosting is better." It is defensible because ridership grew multiplicatively (the test mean is 1.73× the 2011 mean), and modelling today relative to last week is a standard way to handle that. It also removes the cause of the failure (out-of-range days 39% → 0%) rather than masking it. But I picked the best of three on a 182-day validation set, and the same target that lifts the tree breaks the linear model. So the result is that gradient boosting can compete once the target is put on a stationary scale, not that it is the better model; the comparison depends on which target you choose. The code is behind --target and --show-test in src/train.py, with the transforms in src/transforms.py; the committed reports/metrics.json is the untransformed pipeline.
 
 4. Exercise 5
 
-Ridge is worth deploying, narrowly, if large misses are what cost you. It
-beats persistence on R² (test 0.583 vs 0.510; valid 0.648 vs 0.451) and on
-RMSE (valid 1,020 vs 1,273), and its worst validation day is off by 3,536
-rides against persistence's 5,597. It is not just "yesterday again": lagged
-demand is 63% of its prediction on validation, but weather adds +0.04 valid
-R² over a lags-only ridge (0.606 → 0.648), and a BAD-weather day after a GOOD
-one moves the forecast by about −984 rides, which persistence cannot do. The
-cost is bias: ridge shrinks toward the 2011 mean (slope 0.72 on yesterday),
-so in a growing year it under-predicts every day (mean error −555 on test vs
-+16 for persistence). That is why it loses on MAE (947 vs 840). If the
-operational loss is linear in error (MAE), persistence is the better choice;
-if big misses dominate (staffing before storms), ridge is.
+Ridge is worth deploying, narrowly, if large misses are what cost you. It beats persistence on R² (test 0.583 vs 0.510; validation 0.648 vs 0.451) and on RMSE (validation 1,020 vs 1,273), and its worst validation day is off by 3,536 rides against persistence's 5,597. It is not just "yesterday again". Lagged demand accounts for 63% of the variance of its validation predictions, and its largest weight is on the 7-day mean (+567 per SD), not on yesterday (+362). Weather adds +0.04 validation R² over a lags-only ridge (0.606 → 0.648), and moving from GOOD to BAD weather lowers the forecast by about 984 rides, which persistence cannot do. The cost is bias. Ridge shrinks toward its 2011 intercept (slope 0.72 when regressed on yesterday), so in a growing year it under-predicts almost every day (mean error −555 on test, vs +16 for persistence). That is why it loses on MAE (947 vs 840). If the operational loss is roughly linear in error, persistence is the better and simpler choice. If occasional large misses dominate the cost, such as positioning bikes before a storm, ridge is. The gain, 0.07 test R² over doing nothing clever, is the honest size of the result.
 
 5. Attribution
 
@@ -91,4 +46,17 @@ Config changes: removed CLAUDE_CODE_EFFORT_LEVEL=max and CLAUDE_CODE_MAX_OUTPUT_
 Harness: Claude Code 2.1.329.
 Other AI help: I used Claude (claude.ai) for environment troubleshooting, for reviewing the agent's claims, and to draft this report's structure. All numbers were produced by the repo's code and checked by me.
 Me: chose the rules, verified every data fact and agent claim listed above, found the blind spot in the forbidden-features test, and made every decision in docs/DECISIONS.md.
+
+Where the agent was wrong and I caught it: it reported a "checked-in" metrics conflict in a gitignored file; it said "running it now" on several turns without running anything; it attributed a DECISIONS.md line I wrote to a hook; it described the LAG_WARMUP coupling as intentional; and it scored test on a configuration I had not asked for. Where it corrected me: my specification for the unclassified-column test named mnth as a source column, which nothing reads, and my test design could not catch a new numeric column. The agent found both and added the passthrough test that closes the second. The batch audit then found that a derived restatement of the target passed every test, which I fixed.
+
+My decisions (each has a line in docs/DECISIONS.md)
+- What to predict (cnt), what counts as leakage (casual, registered), and that time indexes and the unverified cnt_2d_bfr are excluded for separate reasons
+- The temporal split and the two baselines, accepted from the starter after checking them
+- Verifying the agent's description of the data by hand (728 rows, the missing 2011-03-10, weather counts 463/245/20, 714 feature rows)
+- Seeding the four faults and judging each fix. For fault 4 the agent refused the cp into data/raw/; I ran it myself to show that no structural layer blocks it, then had the hash test added
+- Discarding the agent's unrequested refit of gradient boosting on train+valid scored on test, which it ran while reporting that it had not touched the test set
+- Rejecting cnt_roll_3 (validation R² below the 0.01 bar), but keeping it built and tested
+- Choosing ratio_roll7 on validation before scoring test once, and judging it defensible but not evidence that gradient boosting is the better model
+- Which audit findings to fix and which to reject
+- Which result is believable: ridge's 0.58 is real but only 0.07 better than persistence, and the gradient-boosting results say more about extrapolation and target choice than about the model
 
