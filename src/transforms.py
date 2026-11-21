@@ -8,7 +8,7 @@ arithmetic of the report: every prediction is inverted back to rides before
 scoring, so R^2 and MAE stay in rides and line up with the `--target none`
 run row for row.
 
-Two invariants, enforced by tests/test_target.py:
+Two invariants, neither of them a test:
 
   1. `log` only ever sees values verified strictly positive. A difference
      target can be negative -- that is the point -- so it is log-transformed
@@ -21,6 +21,19 @@ Two invariants, enforced by tests/test_target.py:
      maps f(y) back to y for every row of the modelling table. That is what
      keeps --target runs comparable to the baseline instead of quietly
      scoring a different quantity.
+
+Nothing in tests/ checks either invariant -- there is no test_target.py -- so
+each is guarded at run time instead, by the helper named for it below and
+called from src.train.fit_and_score: `positivity_ok` raises with the split and
+the reason rather than letting train.py score a transform that is not defined
+there (all three splits: `domain_train` / `domain_valid` / `domain_test`), and
+`roundtrip_max_error` is recorded as `invert_roundtrip_max_rides` in
+reports/metrics_target_<name>.json and printed by format_report, so drift away
+from 0 rides is visible in the run that produced it. `python -m src.transforms`
+prints both verdicts for every transform over the whole modelling table and
+over the 2011 training rows. The gap to close, if a --target run ever becomes
+something to trust blind, is a real tests/test_target.py asserting those two
+numbers -- not a docstring claiming one exists.
 
 The base columns (`cnt_lag_1`, `cnt_roll_7`) are features, so they are known
 at prediction time: inverting a prediction uses information the forecaster

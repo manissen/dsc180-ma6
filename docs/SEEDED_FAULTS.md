@@ -305,3 +305,34 @@ Added 1 line
     out["cnt_roll_7"] = out[TARGET].shift(1).rolling(LAG_WARMUP).mean()
 
     return out.dropna().reset_index(drop=True)
+
+
+## Audit-driven faults (from reports/audit.jsonl)
+
+**(a) Derived restatement of the target**: added `out["cnt_same_day_scaled"] = out[TARGET] * 1.0`
+to build_features. Before the fix, all 19 tests passed and ridge scored test R² 0.9999 (per the audit).
+After adding test_no_feature_restates_target:
+
+OK features: 714 rows, 15 features -> features.parquet
+  temp, atemp, hum, windspeed, dayofweek, is_weekend, is_holiday, is_workday, month_sin, month_cos, weather_severity, cnt_lag_1, cnt_lag_7, cnt_roll_7, cnt_same_day_scaled
+...
+>           assert resid > RESTATES_TOL, (
+E           AssertionError: ['cnt_same_day_scaled'] restate cnt exactly: max |residual| 1.82e-12 rides over 714 rows (tolerance 1e-06). At prediction time you would not know any of these for the day being predicted -- they are the target. Drop the column (REJECTED_COLS in src/config.py) rather than raising RESTATES_TOL.
+E           assert 1.8189894035458565e-12 > 1e-06
+
+tests/test_leakage.py:98: AssertionError
+1 failed, 20 passed in 1.47s
+
+**(b) "casual" deleted from LEAKAGE_COLS**: test_no_forbidden_features stays green because both
+sides read FORBIDDEN. After adding test_known_leaks_never_features:
+
+>       assert not (cols & KNOWN_LEAKS), (
+E       AssertionError: known leaky columns in feature set: ['casual']; they are components of cnt, so a model scored on them has learned addition
+E       assert not ({'atemp', 'casual', 'cnt_lag_1', 'cnt_lag_7', 'cnt_roll_7', 'dayofweek', ...} & {'casual', 'cnt', 'registered'})
+
+tests/test_leakage.py:65: AssertionError
+FAILED tests/test_contract.py::test_only_audited_raw_columns_reach_the_model
+FAILED tests/test_leakage.py::test_known_leaks_never_features - AssertionErro...
+2 failed, 19 passed in 1.49s
+
+Both reverted; 21 passed.
