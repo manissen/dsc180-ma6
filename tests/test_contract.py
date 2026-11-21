@@ -3,10 +3,27 @@ import pandas as pd
 import pytest
 from sklearn.metrics import r2_score
 
-from src.config import LAG_WARMUP, TARGET
+from src.config import LAG_WARMUP, RAW, RAW_SHA256, TARGET, sha256_file
 from src.features import build_features, feature_columns, reindex_to_calendar
 from src.ingest import load_raw
 from src.train import MODELS, temporal_split
+
+
+def test_raw_data_unchanged():
+    """data/raw is immutable; permission rules bind only Edit/Write, and a Bash
+    cp or `python -m src.ingest --force` bypasses them, so this catches any
+    modification.
+
+    Byte-level, so it also catches a re-download that is *almost* the same CSV:
+    a drifted row is invisible to load_raw()'s shape checks and would silently
+    change every metric. The hash is the only place the identity of the raw data
+    is pinned, so it is the thing to fix if the dataset is deliberately
+    replaced -- see docs/DECISIONS.md for the convention.
+    """
+    assert sha256_file(RAW) == RAW_SHA256, (
+        f"{RAW} has changed; expected sha256 {RAW_SHA256}. Restore it with "
+        f"`git checkout -- {RAW.relative_to(RAW.parent.parent)}`."
+    )
 
 
 @pytest.fixture(scope="module")

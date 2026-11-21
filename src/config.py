@@ -1,10 +1,30 @@
 """Single source of truth for paths, columns, and split dates."""
+import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw" / "bike_daily.csv"
 PROCESSED = ROOT / "data" / "processed" / "features.parquet"
 METRICS = ROOT / "reports" / "metrics.json"
+
+# The single byte-level guard on `data/raw` being immutable: tests/
+# test_contract.py::test_raw_data_unchanged compares sha256(RAW) to this. The
+# permission rules that keep the CSV read-only bind only Edit/Write, so a Bash
+# `cp`, `sed -i`, `git checkout` of a bad commit, or `python -m src.ingest
+# --force` (which re-downloads over the top of the file) all bypass them, and
+# every downstream number would silently be computed on different data. Value
+# is lowercase hex of sha256(bytes) -- the sha256sum format. Re-derive with
+# `python -m src.config` or `shasum -a 256 data/raw/bike_daily.csv`.
+RAW_SHA256 = "a6bed1577f6e4de56dcfae6d8315985073cc0ad3446c8c99ed60c86a0b5ad9dc"
+
+
+def sha256_file(path: Path) -> str:
+    """Hex digest of a file's bytes, read in chunks so it costs no memory."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 16), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 # Daily Capital Bikeshare counts (Fanaee-T & Gama). Canonical home:
 #   https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset
@@ -63,3 +83,9 @@ VALID_END = "2012-06-30"
 # have no complete history and are dropped; tests/test_contract.py uses this
 # to bound how many rows may legitimately disappear.
 LAG_WARMUP = 7
+
+
+if __name__ == "__main__":
+    actual = sha256_file(RAW)
+    status = "unchanged" if actual == RAW_SHA256 else "CHANGED"
+    print(f"OK config: {actual} ({status})")
