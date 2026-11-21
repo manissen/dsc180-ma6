@@ -57,6 +57,24 @@ def test_rolling_mean_excludes_today(feats):
         assert feats.set_index("dteday").cnt_roll_7[date] == pytest.approx(expected)
 
 
+def test_roll_3_excludes_today_hand_computed(feats):
+    """cnt_roll_3 on 2012-06-15 == mean(cnt) over 06-12, 06-13, 06-14.
+
+    Hand-computed from the immutable raw CSV (data/raw/bike_daily.csv lines
+    527-529), not from src.features: cnt is 4972, 7421, 7363 on those three
+    days, so (4972 + 7421 + 7363) / 3 == 19756 / 3 == 6585.333...
+
+    2012-06-15 is a Friday and all three window days are weekdays, so a
+    misaligned window cannot pass by coincidence -- one day late would pick
+    up Friday's own 7665 and give 7483.0, one day early 6917.666..., against
+    6585.333... here.
+    """
+    assert "cnt_roll_3" in feats.columns, "build_features does not create cnt_roll_3 yet"
+    row = feats.loc[feats.dteday == "2012-06-15"]
+    assert len(row) == 1, "2012-06-15 must survive the warmup dropna"
+    assert row.cnt_roll_3.iloc[0] == pytest.approx(19756 / 3)
+
+
 def test_no_missing_values(feats):
     assert feats[feature_columns(feats)].isna().sum().sum() == 0
 
