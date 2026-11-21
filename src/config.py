@@ -75,6 +75,39 @@ REJECTED_COLS = {"cnt_roll_3"}
 # What feature_columns() and the tests actually enforce.
 FORBIDDEN = LEAKAGE_COLS | TIME_INDEX_COLS | UNVERIFIED_COLS | REJECTED_COLS
 
+# --- Raw columns that are raw material, or inert, but never candidates ------
+# Derived by reading build_features line by line, not by assuming which raw
+# columns look like features. Together with FORBIDDEN and `dteday`, these two
+# dicts must cover every column in data/raw/bike_daily.csv exactly once --
+# tests/test_contract.py::test_every_raw_column_is_classified enforces that, so
+# a new column arriving from the mirror fails the suite instead of becoming a
+# feature by default (feature_columns() includes everything numeric).
+#
+# Why they are not folded into FORBIDDEN: FORBIDDEN is what feature_columns()
+# enforces *after* select_dtypes(include="number"), and all six entries here are
+# strings, so none was ever a candidate. Listing them there would assert a
+# protection that does not exist. They are named anyway because the three that
+# ARE read carry a fragility the dtype system cannot see: change "Y" to "yes"
+# upstream and is_holiday/is_workday go all-zero -- int columns, so dropna()
+# keeps every row and no test notices the values went constant.
+SOURCE_COLS = {
+    "holiday": "is_holiday = (holiday == 'Y')",
+    "workday": "is_workday = (workday == 'Y')",
+    "weather": "weather_severity, via encode_weather (GOOD/MISTY/BAD)",
+}
+
+# --- Raw columns read by nothing --------------------------------------------
+# The intuitive wrong answer is that these feed the calendar features. They do
+# not: build_features derives from `dteday` instead. Kept as their own set
+# rather than a comment on SOURCE_COLS because the set name is a claim about the
+# code, and "source" would be false for a column nothing reads. Naming them is
+# what lets the test tell "looked and passed it over" from "nobody looked".
+UNUSED_COLS = {
+    "season": "unused; WINTER/SPRING/SUMMER/FALL, redundant with month_sin/month_cos (docs/DECISIONS.md 2026-11-20)",
+    "mnth": "unused; month_sin/month_cos come from dteday.dt.month",
+    "weekday": "unused; dayofweek comes from dteday.dt.dayofweek",
+}
+
 # Temporal split: train on 2011, validate on H1 2012, test on H2 2012.
 TRAIN_END = "2011-12-31"
 VALID_END = "2012-06-30"
