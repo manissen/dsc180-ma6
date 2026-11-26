@@ -1,0 +1,102 @@
+{
+  "n_features": 14,
+  "features": [
+    "temp",
+    "atemp",
+    "hum",
+    "windspeed",
+    "dayofweek",
+    "is_weekend",
+    "is_holiday",
+    "is_workday",
+    "month_sin",
+    "month_cos",
+    "weather_severity",
+    "cnt_lag_1",
+    "cnt_lag_7",
+    "cnt_roll_7"
+  ],
+  "n_train": 348,
+  "n_valid": 182,
+  "n_test": 184,
+  "target": "ratio_roll7",
+  "target_description": "y / cnt_roll_7",
+  "fit_target": "models fit y / cnt_roll_7; every prediction is inverted back to rides before scoring",
+  "domain_train": "ok",
+  "domain_valid": "ok",
+  "domain_test": "ok",
+  "invert_roundtrip_max_rides": 9.095e-13,
+  "coverage": {
+    "valid": {
+      "train_z_lo": 0.157521,
+      "train_z_hi": 1.878064,
+      "valid_z_lo": 0.159617,
+      "valid_z_hi": 1.691991,
+      "n_valid": 182,
+      "n_outside_train_range": 0,
+      "n_below_train_range": 0,
+      "n_above_train_range": 0,
+      "share_outside_train_range": 0.0
+    }
+  },
+  "baseline_mean": {
+    "valid": {
+      "r2": -0.9318,
+      "mae": 2002.2,
+      "n_pred_rides_negative": 0,
+      "pred_rides_min": 3493.5
+    },
+    "test": {
+      "r2": -2.1441,
+      "mae": 2847.7,
+      "n_pred_rides_negative": 0,
+      "pred_rides_min": 3493.5
+    }
+  },
+  "baseline_persistence": {
+    "valid": {
+      "r2": 0.4507,
+      "mae": 900.6,
+      "n_pred_rides_negative": 0,
+      "pred_rides_min": 1027.0
+    },
+    "test": {
+      "r2": 0.5099,
+      "mae": 840.1,
+      "n_pred_rides_negative": 0,
+      "pred_rides_min": 22.0
+    }
+  },
+  "ridge": {
+    "valid": {
+      "r2": 0.3881,
+      "mae": 1092.9,
+      "n_pred_rides_negative": 0,
+      "pred_rides_min": 922.5
+    },
+    "test": {
+      "r2": 0.0226,
+      "mae": 1497.1,
+      "n_pred_rides_negative": 0,
+      "pred_rides_min": 439.2
+    }
+  },
+  "hgb": {
+    "valid": {
+      "r2": 0.7454,
+      "mae": 687.2,
+      "n_pred_rides_negative": 0,
+      "pred_rides_min": 1202.1
+    },
+    "test": {
+      "r2": 0.6416,
+      "mae": 810.1,
+      "n_pred_rides_negative": 0,
+      "pred_rides_min": 956.0
+    }
+  },
+  "splits_scored": [
+    "valid",
+    "test"
+  ]
+}
