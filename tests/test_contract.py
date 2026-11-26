@@ -165,10 +165,10 @@ def test_beats_the_mean_baseline(feats):
     from _models(), which is also where this idiom comes from.
     """
     cols = feature_columns(feats)
-    train, _, test = temporal_split(feats)
+    train, valid, _ = temporal_split(feats)
     ridge = copy.deepcopy(MODELS["ridge"])
     ridge.fit(train[cols], train[TARGET])
-    assert r2_score(test[TARGET], ridge.predict(test[cols])) > 0.4
+    assert r2_score(valid[TARGET], ridge.predict(valid[cols])) > 0.4
 
 
 def test_persistence_baseline_is_reported():
