@@ -4,3 +4,4 @@ __pycache__/
 data/processed/
 audit.jsonl
 .claude/settings.local.json
+.Rhistory
