@@ -40,7 +40,7 @@ Ridge is worth deploying, narrowly, if large misses are what cost you. It beats 
 
 5. Attribution
 
-Agent model: qwen3, hosted on NRP Nautilus (https://ellm.nrp-nautilus.io/anthropic). TODO: add the parameter count from curl .../v1/models.
+Agent model: qwen3, hosted on NRP Nautilus (https://ellm.nrp-nautilus.io/anthropic).
 Why not the handout model: my Mac has 8 GB RAM, and the local qwen3.5:9b (64k context) returned HTTP 500. The hosted fallback qwen3.5:27b-cloud was retired by Ollama on 2026-09-25. I used the professor's NRP fallback instead.
 Config changes: removed CLAUDE_CODE_EFFORT_LEVEL=max and CLAUDE_CODE_MAX_OUTPUT_TOKENS from the NRP config, because every response failed with "malformed stream."
 Harness: Claude Code 2.1.329.

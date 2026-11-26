@@ -54,3 +54,5 @@ Agents append here via the `/new-feature` skill; you append here by hand.
 - 2026-11-20: Believable result: ridge 0.583 test R² is real but only 0.07 over persistence and loses on MAE; hgb results say more about extrapolation and target choice than about the model. Headline written that way.
 - 2026-11-25: Audited m1chun/bikeshare-open with leakage-auditor (Bash blocked via NRP; read-only findings). Verified F1, F2 real; F3 partly (read_csv bug real, consequence unproven).
 - 2026-11-25: Audit F1 also in my repo (inherited from starter): contract test gated on test-split R^2. Changed to validation.
+- 2026-11-25: Wrote run-pipeline skill ($ARGUMENTS = stage). First run (/run-pipeline features) passed; agent flagged truncated metrics header, staged-vs-committed diff, pytest vs make test. Fixed all three; /run-pipeline train confirms metrics unchanged vs HEAD.
+

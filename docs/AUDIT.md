@@ -1,33 +1,44 @@
-Partner repo url: https://github.com/m1chun/bikeshare-open.git
-HEAD 5248262, auditor = leakage-auditor, model NRP qwen3
+## Scope
 
- **Execution caveat first, because it bounds everything below.** Bash is blocked in this session ("Auto mode is unavailable: its safety check does not run for this session") — only my very first call ran. I could not execute `make test`, `python -m src.train`, or `scripts/ex4_target_transform.py`. Per the task's read-only constraint I did not install anything either, so `requirements.txt` (numpy==2.5.3, pandas==3.0.5, scikit-learn==1.9.1) remains unverified as installed. I verified every claim below by reading the code, hand-checking raw CSV rows, and doing the arithmetic; where a number could only be confirmed by running the fit, I say so and do not assert it.
+Requested as a diff audit. **There is no diff to audit** — working tree is
+clean, `HEAD == origin/master`, nothing unpushed, and the pipeline files have
+not changed since `fd2284a`. Scope was therefore widened to the whole pipeline
+at HEAD: `src/config.py`, `src/features.py`, `src/train.py`, `src/ingest.py`,
+`tests/`, and the numbers claimed in `REPORT.md`.
 
-    Audit target: `/Users/margotnissen/Desktop/Capstone/DSC_180A_MA_6/partner-repo` at HEAD `5248262` ("REPORT: work in progress"), tree clean. Their constants, verified independently: `FORBIDDEN` = {casual, registered, cnt, instant, yr, days_since_2011, cnt_2d_bfr}; `SAFE_INPUT_COLS` = 11 more; the two sets partition all 18 CSV header columns exactly, disjoint, so `test_every_raw_column_is_classified` holds. Split dates 2011-12-31 / 2012-06-30. `LAG_WARMUP = 7`.
+## Repo state (verified)
 
-    Row arithmetic I reproduced by hand from the raw file (728 data rows, `instant` 3→731 with 69 absent, i.e. 2011-03-10 missing, confirmed at `/Users/margotnissen/Desktop/Capstone/DSC_180A_MA_6/partner-repo/data/raw/bike_daily.csv:67-68`): 363 + 366 = 729 calendar days, minus 7 warm-up, minus the gap row, minus the 7 post-gap rows whose window touches it = 714; 714 − 15 (all in 2011) = 348 train, 182 valid, 184 test. `n_train`/`n_valid`/`n_test` and `test_row_loss_is_expected` are correct. `casual + registered == cnt` spot-checked on rows 2, 9, 68, 666 (2+20=22). `cnt_lag_1` confirmed a true 1-day lag and the frame confirmed to start 2011-01-10 via the `[721 rows x 29 columns]` dump in `docs/SEEDED_FAULTS.md:206-208` (first row cnt_lag_1 = 822.0 = cnt on 2011-01-09).
+- Path: `../partner-repo`, branch `master`, HEAD `5248262 "REPORT: work in progress"`
+- `git status`: clean. `git log origin/master..HEAD`: empty.
+- Remote: `https://github.com/m1chun/bikeshare-open.git`
+- `src/`: `__init__.py`, `config.py`, `features.py`, `ingest.py`,
+  `leakage_demo.py`, `train.py`
+- Also present: `agent/` (contains its own `audit.py`, with an audit run
+  committed at `d5fe40e`), `scripts/`, `reports/`, `model/`, `docs/`
 
-    Checks 1 (target leakage), 3 (calendar gaps) and 4 (silent row loss) pass on the committed pipeline: `src/features.py:71-73` shifts before every aggregation and builds all lags after `reindex_to_calendar`; `encode_weather` validates non-NaN labels before mapping and its NaN is bounded by the exact 14-row allowance in `tests/test_contract.py:41`; no feature restates `cnt` at time *t*. `scripts/ex4_target_transform.py:11-13,25` uses date boundaries equivalent to `temporal_split` and HGB settings identical to `src/train.py:52`, so the scripts/src disagreement lead comes back empty there. Three findings do change a number or a conclusion.
+## History of the files under audit
 
-    **F1 — the test suite reads the test set on every run, and the green checkmark is contingent on it.** `/Users/margotnissen/Desktop/Capstone/DSC_180A_MA_6/partner-repo/tests/test_contract.py:49,52`: `train, _, test = temporal_split(feats)` then `assert r2_score(test[TARGET], ridge.predict(test[cols])) > 0.4`. Concrete scenario: `make test` is mandatory after every `src/` edit (CLAUDE.md rule 8), so ridge's H2 2012 R² is recomputed on each feature iteration — this directly contradicts `REPORT.md:7` ("Test was viewed at Step 6 and once at the end") and `docs/DECISIONS.md` ("Test set touched once, after all feature work"). It is load-bearing, not decorative: the committed pipeline scores 0.4173 on exactly this metric, 0.017 above the gate, so a feature judged fine on validation that nudged test R² under 0.4 would be blocked by a test-set criterion — the reverse of the `/new-feature` rule that gates on validation. Secondary, same lines: it calls `.fit()` on the shared `MODELS["ridge"]` instance, the in-place-mutation hazard this project's own style rule warns about (benign today only because `fit_and_score` refits it first). Minimal fix: `train, valid, _ = temporal_split(feats)` and assert on `valid`, and use `clone(ridge)`/`make_pipeline(StandardScaler(), Ridge(alpha=1.0))` locally.
+    fd2284a config: add SAFE_INPUT_COLS (fix: missing from previous commit)
+    d2b28c2 Fix fault 3: restore raise on unmapped weather labels
+    3cd7280 Fault 3 (seeded): raise removed from encode_weather
+    8f8525c Fix fault 2: restore shift(1) on cnt_roll_7
+    ad1675a Fault 2 (seeded): shift(1) removed from cnt_roll_7
+    800630f Fix fault 1: remove casual from feature_columns
+    a198939 Fault 1 (seeded): casual added to feature_columns
+    3cc46ea Ex1: add temp_sq (ridge valid R² 0.6475 -> 0.5811, negative result)
+    0c5aca0 Starter (unmodified)
 
-    **F2 — the headline and Exercise 5 present the pre-`temp_sq` ridge-vs-persistence result as the finding, and the committed row in the same report contradicts it.** `REPORT.md:25` ("ridge beat persistence by only +0.07 test R² and lost on MAE (947 vs. 840)") and the first paragraph of `REPORT.md:33` (`0.583 vs. 0.510`, MAE `947 vs. 840`, "12.7% worse") are the 14-feature Step-6 numbers; `reports/metrics.json`, which `REPORT.md:6` calls the committed state, has ridge test R² 0.4173 / MAE 1188.6 against persistence 0.5099 / 840.1 — ridge **loses to persistence on test R² by −0.09**, not wins by +0.07. `REPORT.md:34` concedes this one line later, so the section contradicts itself and the headline never says it out loud, which is exactly what CLAUDE.md rule 5 requires when a lag-driven model loses to persistence. The mechanistic argument is stranded the same way: the standardized coefficients quoted at `:33` (`cnt_roll_7 +567`, `cnt_lag_1 +362`, `weather_severity −280`, `temp +200`) are the pre-`temp_sq` fit recorded in `docs/DECISIONS.md` Step 6, and they are used to explain "ridge's edge" in a pipeline that no longer has one. `docs/DECISIONS.md:6` ("honest ridge 0.583") and `:10` ("within 0.07 R² of ridge") carry the same stale number. I could not refit to obtain the committed 15-feature coefficients — that needs the blocked Bash. Minimal fix: rewrite `REPORT.md:25` and `:33` against the committed 15-feature metrics (and re-derive the coefficients from the committed fit), or drop `temp_sq` per the `/new-feature` <0.01 rule and re-run `make train` so `metrics.json` and the prose agree; correct `DECISIONS.md:6,10` either way.
+## Findings
 
-    **F3 — `agent/audit.py` cannot produce the verdict its own committed audit run records.** `agent/audit.py:96-97` tells the reviewer to run `check_identity` "on the processed feature table", but `agent/audit.py:52` loads it with `pd.read_csv`, which cannot read `data/processed/features.parquet`; the only CSV in scope is `data/raw/bike_daily.csv`, where `casual + registered == cnt` on all 728 rows, so the tool must return `{"verdict": "LEAKAGE", ...}` on the whole candidate set (the r=2 subset hits `resid < 1e-6` at `:70-71`). Therefore `reports/audit.jsonl`'s `"leakage": "none"` cannot be the output of that deterministic check — it is the model's opinion of `feature_columns()`, and DECISIONS' Ex3 entry ("agent/audit.py on own repo: leakage none") treats it as a verification result. The same artifact's `"temporal_ok": true` is thinner than it reads: `agent/audit.py:94-105` checks four things and omits contiguous-index/`shift`-gap correctness and bounded row loss — the two fault modes this repo actually planted and had to write new tests for (Fault 2, and Fault 5 which `test_lags_are_true_calendar_lags` missed). Note the repo's own subagent, `.claude/agents/leakage-auditor.md:12-27`, lists all five checks, so the two auditors in one repo disagree about the standard; `REPORT.md:25`'s "The verification suite had gaps that only seeding faults exposed" is the honest version, and `audit.jsonl` is not evidence of the properties it appears to certify. Minimal fix: dispatch on suffix at `agent/audit.py:52` (`pd.read_parquet` when `csv_path.suffix` is `.parquet/.pq`), and either sync `SYSTEM`'s list with the five checks or state in the schema that `temporal_ok` covers only split order, shift-before-aggregate and fit-on-train.
+## Checks to perform
 
-    Not reported, considered and dismissed: `LAG_WARMUP` doubles as the window length in `src/features.py:72-73` and as the row-loss bound, so raising it renames `cnt_lag_7`/`cnt_roll_7` to windows they no longer are — but `tests/test_leakage.py:57`'s hardcoded `range(1, 8)`/`/7` and `:70`'s exact 714 both go red if that happens, and at 7 the names match today, so no current number is wrong. `temp_sq` and same-day `weather_severity` are same-day-weather assumptions the repo documents deliberately, not target leakage. `scripts/ex4_target_transform.py:9` hardcodes the parquet path instead of `config.PROCESSED` — style. The rejection of the auditor's reproducibility finding is correct: `random_state=0` is set at `src/train.py:52`.
-
-## My verdict
-Auditor could not run Bash (auto mode unavailable via NRP); findings came from
-reading code only. I re-checked each with grep/cat at HEAD 5248262.
-
-| # | Finding | Real? | Changes a number? | My evidence |
-|---|---|---|---|---|
-| F1 | Contract test scores the test split on every `make test` | Yes | Yes: gate is test R^2 > 0.4; committed 0.4173 (margin 0.017) | test_contract.py:49,52. [Same lines in my repo: yes/no]. Same lines in my repo (test_contract.py:168,171), inherited from starter; fixed in mine. |
-| F2 | Headline/Ex5 quote pre-temp_sq ridge numbers | Yes (partly acknowledged at REPORT:34) | Yes: headline +0.07 test R^2 vs committed -0.09 (0.4173 vs 0.5099); MAE 947 -> 1188.6 | metrics.json vs REPORT.md:25,33 |
-| F3 | audit.py can't produce its recorded verdict | Partly | audit.jsonl "leakage: none" unsupported as a computed check | read_csv at audit.py:52 vs "processed feature table" at :96 is real; claim that the tool *must* return LEAKAGE depends on which columns the model passed. Unproven. |
-
-**Summary:** No target leakage in the committed feature pipeline (auditor's
-checks 1, 3, 4 pass). Two real reporting/process problems (test-set gate,
-stale headline numbers) and one real tool bug whose consequence is overstated.
-Auditor slip: "714 - 15 = 348" should be 363 - 15; result correct.
+1. **Target leakage** — read `src/config.py` `FORBIDDEN` / `SAFE_INPUT_COLS`;
+   check arithmetic combinations in `feature_columns()`, not column names.
+   Note `800630f` removed `casual`; `fd2284a`'s own message admits
+   `SAFE_INPUT_COLS` was missing from the commit before it.
+2. **Temporal ordering** — every aggregation `.shift(1)` before aggregating;
+   split by date; no fitted transformer sees valid/test rows.
+3. **Calendar gaps** — lag features vs missing days in the index.
+4. **Silent row loss** — `.map()` / `.merge()` / `.dropna()` without a
+   bounding assertion.
+5. **Unreported baseline** — mean *and* persistence next to every score.
